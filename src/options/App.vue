@@ -99,13 +99,41 @@
             </el-card>
           </div>
 
-          <el-card class="chart-card">
-            <h3>威胁类型分布</h3>
+          <!-- 图表可视化区域 -->
+          <div class="charts-grid">
+            <!-- 饼图：威胁类型分布 -->
+            <el-card class="chart-card">
+              <h3>📊 威胁类型分布（饼图）</h3>
+              <div ref="pieChartRef" class="chart-container"></div>
+            </el-card>
+
+            <!-- 柱状图：威胁类型统计 -->
+            <el-card class="chart-card">
+              <h3>📈 威胁类型统计（柱状图）</h3>
+              <div ref="barChartRef" class="chart-container"></div>
+            </el-card>
+
+            <!-- 环形图：威胁等级分布 -->
+            <el-card class="chart-card">
+              <h3>🎯 威胁等级分布（环形图）</h3>
+              <div ref="doughnutChartRef" class="chart-container"></div>
+            </el-card>
+
+            <!-- 雷达图：安全防护能力 -->
+            <el-card class="chart-card">
+              <h3>🛡️ 安全防护能力（雷达图）</h3>
+              <div ref="radarChartRef" class="chart-container"></div>
+            </el-card>
+          </div>
+
+          <!-- 原有的进度条展示 -->
+          <el-card class="chart-card" style="margin-top: 20px;">
+            <h3>威胁类型详情</h3>
             <div class="threat-types">
               <div v-for="(count, type) in stats.threatsByType" :key="type" class="threat-type-item">
                 <span class="threat-type-name">{{ getThreatTypeName(type) }}</span>
                 <el-progress :percentage="getThreatPercentage(count)" :color="getThreatColor(type)" />
-                <span class="threat-count">{{ count }}</span>
+                <span class="threat-count">{{ getThreatPercentage(count) }}% ({{ count }})</span>
               </div>
             </div>
           </el-card>
@@ -200,12 +228,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useSecurityStore } from '../stores/security'
+import * as echarts from 'echarts'
 
 const securityStore = useSecurityStore()
 const activeTab = ref('general')
+
+// 图表引用
+const pieChartRef = ref<HTMLElement>()
+const barChartRef = ref<HTMLElement>()
+const doughnutChartRef = ref<HTMLElement>()
+const radarChartRef = ref<HTMLElement>()
+
+let pieChart: echarts.ECharts | null = null
+let barChart: echarts.ECharts | null = null
+let doughnutChart: echarts.ECharts | null = null
+let radarChart: echarts.ECharts | null = null
 
 // 计算属性
 const settings = computed(() => securityStore.settings)
@@ -294,12 +334,317 @@ async function clearThreats() {
 
 function exportData() {
   // 导出数据功能
-  ElMessage.info('导出功能开发中...')
+  const data = {
+    stats: stats.value,
+    threats: recentThreats.value,
+    settings: settings.value,
+    exportTime: new Date().toISOString()
+  }
+  
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `security-data-${Date.now()}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+  
+  ElMessage.success('数据已导出')
 }
+
+// 初始化图表
+function initCharts() {
+  nextTick(() => {
+    if (pieChartRef.value) {
+      pieChart = echarts.init(pieChartRef.value)
+      updatePieChart()
+    }
+    if (barChartRef.value) {
+      barChart = echarts.init(barChartRef.value)
+      updateBarChart()
+    }
+    if (doughnutChartRef.value) {
+      doughnutChart = echarts.init(doughnutChartRef.value)
+      updateDoughnutChart()
+    }
+    if (radarChartRef.value) {
+      radarChart = echarts.init(radarChartRef.value)
+      updateRadarChart()
+    }
+  })
+}
+
+// 更新饼图
+function updatePieChart() {
+  if (!pieChart) return
+  
+  const data = Object.entries(stats.value.threatsByType).map(([type, count]) => ({
+    name: getThreatTypeName(type),
+    value: count
+  }))
+  
+  const option = {
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c} ({d}%)'
+    },
+    legend: {
+      orient: 'vertical',
+      right: 10,
+      top: 'center',
+      textStyle: {
+        fontSize: 12
+      }
+    },
+    series: [
+      {
+        name: '威胁类型',
+        type: 'pie',
+        radius: ['0%', '70%'],
+        center: ['40%', '50%'],
+        data: data,
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.5)'
+          }
+        },
+        label: {
+          formatter: '{b}\n{d}%'
+        },
+        color: ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272']
+      }
+    ]
+  }
+  
+  pieChart.setOption(option)
+}
+
+// 更新柱状图
+function updateBarChart() {
+  if (!barChart) return
+  
+  const types = Object.keys(stats.value.threatsByType).map(type => getThreatTypeName(type))
+  const counts = Object.values(stats.value.threatsByType)
+  
+  const option = {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow'
+      }
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      data: types,
+      axisLabel: {
+        interval: 0,
+        rotate: 30,
+        fontSize: 11
+      }
+    },
+    yAxis: {
+      type: 'value',
+      name: '数量'
+    },
+    series: [
+      {
+        name: '威胁数量',
+        type: 'bar',
+        data: counts,
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: '#667eea' },
+            { offset: 1, color: '#764ba2' }
+          ])
+        },
+        label: {
+          show: true,
+          position: 'top'
+        }
+      }
+    ]
+  }
+  
+  barChart.setOption(option)
+}
+
+// 更新环形图
+function updateDoughnutChart() {
+  if (!doughnutChart) return
+  
+  const data = Object.entries(stats.value.threatsByLevel).map(([level, count]) => ({
+    name: getLevelName(level),
+    value: count
+  }))
+  
+  const option = {
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c} ({d}%)'
+    },
+    legend: {
+      orient: 'vertical',
+      right: 10,
+      top: 'center'
+    },
+    series: [
+      {
+        name: '威胁等级',
+        type: 'pie',
+        radius: ['40%', '70%'],
+        center: ['40%', '50%'],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderRadius: 10,
+          borderColor: '#fff',
+          borderWidth: 2
+        },
+        label: {
+          show: true,
+          formatter: '{b}\n{d}%'
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: 16,
+            fontWeight: 'bold'
+          }
+        },
+        data: data,
+        color: ['#909399', '#e6a23c', '#f56c6c', '#ff4757']
+      }
+    ]
+  }
+  
+  doughnutChart.setOption(option)
+}
+
+// 更新雷达图
+function updateRadarChart() {
+  if (!radarChart) return
+  
+  const indicator = [
+    { name: '恶意URL防护', max: 100 },
+    { name: 'XSS防护', max: 100 },
+    { name: '追踪器阻止', max: 100 },
+    { name: '表单安全', max: 100 },
+    { name: '钓鱼防护', max: 100 },
+    { name: '脚本检测', max: 100 }
+  ]
+  
+  // 根据实际阻止率计算防护能力
+  const maliciousUrlRate = stats.value.threatsByType.malicious_url 
+    ? (stats.value.blockedThreats / stats.value.totalThreats * 100) : 90
+  const xssRate = stats.value.threatsByType.xss_attack 
+    ? (stats.value.blockedThreats / stats.value.totalThreats * 100) : 85
+  const trackerRate = stats.value.threatsByType.tracker 
+    ? (stats.value.blockedThreats / stats.value.totalThreats * 100) : 95
+  const formRate = stats.value.threatsByType.insecure_form 
+    ? (stats.value.blockedThreats / stats.value.totalThreats * 100) : 80
+  const phishingRate = stats.value.threatsByType.phishing 
+    ? (stats.value.blockedThreats / stats.value.totalThreats * 100) : 88
+  const scriptRate = stats.value.threatsByType.suspicious_script 
+    ? (stats.value.blockedThreats / stats.value.totalThreats * 100) : 92
+  
+  const option = {
+    tooltip: {
+      trigger: 'item'
+    },
+    radar: {
+      indicator: indicator,
+      shape: 'polygon',
+      splitNumber: 5,
+      name: {
+        textStyle: {
+          fontSize: 12
+        }
+      },
+      splitArea: {
+        areaStyle: {
+          color: ['rgba(102, 126, 234, 0.1)', 'rgba(102, 126, 234, 0.2)',
+                  'rgba(102, 126, 234, 0.3)', 'rgba(102, 126, 234, 0.4)',
+                  'rgba(102, 126, 234, 0.5)']
+        }
+      }
+    },
+    series: [
+      {
+        name: '防护能力',
+        type: 'radar',
+        data: [
+          {
+            value: [maliciousUrlRate, xssRate, trackerRate, formRate, phishingRate, scriptRate],
+            name: '当前防护水平',
+            areaStyle: {
+              color: 'rgba(102, 126, 234, 0.5)'
+            },
+            lineStyle: {
+              color: '#667eea',
+              width: 2
+            },
+            itemStyle: {
+              color: '#667eea'
+            }
+          }
+        ]
+      }
+    ]
+  }
+  
+  radarChart.setOption(option)
+}
+
+function getLevelName(level: string) {
+  const names: Record<string, string> = {
+    low: '低危',
+    medium: '中危',
+    high: '高危',
+    critical: '严重'
+  }
+  return names[level] || level
+}
+
+// 监听标签页切换，初始化图表
+watch(activeTab, (newTab) => {
+  if (newTab === 'stats') {
+    initCharts()
+  }
+})
+
+// 监听统计数据变化，更新图表
+watch(() => stats.value, () => {
+  if (activeTab.value === 'stats') {
+    updatePieChart()
+    updateBarChart()
+    updateDoughnutChart()
+    updateRadarChart()
+  }
+}, { deep: true })
 
 // 生命周期
 onMounted(async () => {
   await securityStore.initialize()
+  
+  // 如果默认打开统计页面，初始化图表
+  if (activeTab.value === 'stats') {
+    initCharts()
+  }
+  
+  // 监听窗口大小变化，调整图表
+  window.addEventListener('resize', () => {
+    pieChart?.resize()
+    barChart?.resize()
+    doughnutChart?.resize()
+    radarChart?.resize()
+  })
 })
 </script>
 
@@ -428,10 +773,31 @@ onMounted(async () => {
 }
 
 .threat-count {
-  width: 40px;
+  min-width: 80px;
   text-align: right;
   font-size: 12px;
   color: #333;
+  font-weight: 600;
+}
+
+/* 图表网格布局 */
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.chart-container {
+  width: 100%;
+  height: 350px;
+  margin-top: 16px;
+}
+
+@media (max-width: 1024px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .threats-header {

@@ -112,7 +112,7 @@
     <!-- AI钓鱼网站检测对话框 -->
     <el-dialog
       v-model="showPhishingDialog"
-      title="AI钓鱼网站检测"
+      title="tuxin2AI钓鱼网站检测"
       width="90%"
       :close-on-click-modal="false"
     >
