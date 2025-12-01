@@ -109,11 +109,10 @@ npm run build:extension
 
 ## 🔌 安装插件到浏览器
 
-### Chrome / Edge 浏览器
+### Chrome 浏览器
 
 1. 打开浏览器，进入扩展程序管理页面：
    - Chrome: `chrome://extensions/`
-   - Edge: `edge://extensions/`
 
 2. 开启右上角的 **"开发者模式"**
 
