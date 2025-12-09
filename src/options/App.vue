@@ -193,7 +193,7 @@
           <!-- 图表可视化区域 -->
           <div class="charts-grid">
             <!-- 饼图：威胁类型分布 -->
-            <el-card class="chart-card">
+          <el-card class="chart-card">
               <h3>📊 威胁类型分布（饼图）</h3>
               <div ref="pieChartRef" class="chart-container"></div>
             </el-card>
@@ -731,18 +731,29 @@ watch(() => stats.value, () => {
 // 黑白名单管理
 async function loadLists() {
   try {
-    const result = await chrome.storage.local.get(['whitelist', 'blacklist'])
+    console.log('🔄 开始加载黑白名单...')
+    
+    // 通过 background 获取黑白名单（与统计信息一样）
+    const whitelistResponse = await chrome.runtime.sendMessage({ type: 'GET_WHITELIST' })
+    const blacklistResponse = await chrome.runtime.sendMessage({ type: 'GET_BLACKLIST' })
+    
+    console.log('📦 从 background 获取的数据:', { 
+      whitelistResponse, 
+      blacklistResponse 
+    })
     
     // 确保加载的数据是数组
-    whitelist.value = Array.isArray(result.whitelist) ? result.whitelist : []
-    blacklist.value = Array.isArray(result.blacklist) ? result.blacklist : []
+    whitelist.value = Array.isArray(whitelistResponse.whitelist) ? whitelistResponse.whitelist : []
+    blacklist.value = Array.isArray(blacklistResponse.blacklist) ? blacklistResponse.blacklist : []
     
-    console.log('📋 加载黑白名单:', {
-      whitelist: whitelist.value.length,
-      blacklist: blacklist.value.length
+    console.log('✅ 加载黑白名单成功:', {
+      whitelist: whitelist.value,
+      whitelistCount: whitelist.value.length,
+      blacklist: blacklist.value,
+      blacklistCount: blacklist.value.length
     })
   } catch (error) {
-    console.error('加载黑白名单失败:', error)
+    console.error('❌ 加载黑白名单失败:', error)
     // 出错时确保初始化为空数组
     whitelist.value = []
     blacklist.value = []
@@ -755,17 +766,35 @@ async function saveLists() {
     const whitelistToSave = Array.isArray(whitelist.value) ? whitelist.value : []
     const blacklistToSave = Array.isArray(blacklist.value) ? blacklist.value : []
     
-    await chrome.storage.local.set({
+    console.log('💾 准备保存黑白名单:', {
+      whitelistCount: whitelistToSave.length,
+      blacklistCount: blacklistToSave.length,
       whitelist: whitelistToSave,
       blacklist: blacklistToSave
     })
     
-    console.log('💾 保存黑白名单:', {
-      whitelist: whitelistToSave.length,
-      blacklist: blacklistToSave.length
+    // 通过 background 保存黑白名单（与统计信息一样）
+    const whitelistResult = await chrome.runtime.sendMessage({
+      type: 'UPDATE_WHITELIST',
+      data: whitelistToSave
+    })
+    
+    const blacklistResult = await chrome.runtime.sendMessage({
+      type: 'UPDATE_BLACKLIST',
+      data: blacklistToSave
+    })
+    
+    console.log('✅ 保存黑白名单成功:', { whitelistResult, blacklistResult })
+    
+    // 验证保存结果
+    const whitelistVerify = await chrome.runtime.sendMessage({ type: 'GET_WHITELIST' })
+    const blacklistVerify = await chrome.runtime.sendMessage({ type: 'GET_BLACKLIST' })
+    console.log('✔️ 验证保存结果:', {
+      whitelist: whitelistVerify.whitelist,
+      blacklist: blacklistVerify.blacklist
     })
   } catch (error) {
-    console.error('保存黑白名单失败:', error)
+    console.error('❌ 保存黑白名单失败:', error)
     throw error
   }
 }
@@ -922,9 +951,46 @@ async function clearBlacklist() {
 }
 
 // 生命周期
+// 监听 storage 变化
+function setupStorageListener() {
+  if (typeof chrome !== 'undefined' && chrome.storage) {
+    chrome.storage.onChanged.addListener((changes: any, areaName: string) => {
+      if (areaName === 'local') {
+        console.log('📢 Storage 变化检测:', changes)
+        
+        if (changes.whitelist) {
+          console.log('🔄 白名单变化:', {
+            旧值: changes.whitelist.oldValue,
+            新值: changes.whitelist.newValue
+          })
+          if (Array.isArray(changes.whitelist.newValue)) {
+            whitelist.value = changes.whitelist.newValue
+          }
+        }
+        
+        if (changes.blacklist) {
+          console.log('🔄 黑名单变化:', {
+            旧值: changes.blacklist.oldValue,
+            新值: changes.blacklist.newValue
+          })
+          if (Array.isArray(changes.blacklist.newValue)) {
+            blacklist.value = changes.blacklist.newValue
+          }
+        }
+      }
+    })
+    console.log('✅ Storage 监听器已设置')
+  }
+}
+
 onMounted(async () => {
+  console.log('🎬 Options 页面初始化...')
+  
   await securityStore.initialize()
   await loadLists()
+  
+  // 设置 storage 监听器
+  setupStorageListener()
   
   // 如果默认打开统计页面，初始化图表
   if (activeTab.value === 'stats') {
@@ -938,6 +1004,8 @@ onMounted(async () => {
     doughnutChart?.resize()
     radarChart?.resize()
   })
+  
+  console.log('✅ Options 页面初始化完成')
 })
 </script>
 

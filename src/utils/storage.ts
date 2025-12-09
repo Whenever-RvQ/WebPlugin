@@ -44,7 +44,8 @@ export const STORAGE_KEYS = {
   SETTINGS: 'protection_settings',
   STATS: 'security_stats',
   THREATS: 'threat_history',
-  WHITELIST: 'url_whitelist',
+  WHITELIST: 'whitelist',
+  BLACKLIST: 'blacklist',
   MALICIOUS_URLS: 'malicious_urls',
   LAST_UPDATE: 'last_update'
 } as const
@@ -192,6 +193,46 @@ export async function removeFromWhitelist(url: string): Promise<void> {
     }
   } catch (error) {
     console.error('Failed to remove from whitelist:', error)
+    throw error
+  }
+}
+
+// 获取黑名单
+export async function getBlacklist(): Promise<string[]> {
+  try {
+    const result = await browser.storage.local.get(STORAGE_KEYS.BLACKLIST)
+    return result[STORAGE_KEYS.BLACKLIST] || []
+  } catch (error) {
+    console.error('Failed to get blacklist:', error)
+    return []
+  }
+}
+
+// 添加到黑名单
+export async function addToBlacklist(url: string): Promise<void> {
+  try {
+    const blacklist = await getBlacklist()
+    if (!blacklist.includes(url)) {
+      blacklist.push(url)
+      await browser.storage.local.set({ [STORAGE_KEYS.BLACKLIST]: blacklist })
+    }
+  } catch (error) {
+    console.error('Failed to add to blacklist:', error)
+    throw error
+  }
+}
+
+// 从黑名单移除
+export async function removeFromBlacklist(url: string): Promise<void> {
+  try {
+    const blacklist = await getBlacklist()
+    const index = blacklist.indexOf(url)
+    if (index > -1) {
+      blacklist.splice(index, 1)
+      await browser.storage.local.set({ [STORAGE_KEYS.BLACKLIST]: blacklist })
+    }
+  } catch (error) {
+    console.error('Failed to remove from blacklist:', error)
     throw error
   }
 }

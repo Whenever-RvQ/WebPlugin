@@ -85,7 +85,9 @@ chrome.runtime.onInstalled.addListener((details) => {
           critical: 0
         },
         lastScanTime: 0
-      }
+      },
+      whitelist: [],
+      blacklist: []
     })
     
     // 打开欢迎页面
@@ -292,6 +294,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         console.log('⚠️ Security issue:', request.issueType, request.data)
         sendResponse({ success: true })
         break
+      
+      case 'UPDATE_WHITELIST':
+        console.log('📝 Updating whitelist:', request.data)
+        chrome.storage.local.set({ whitelist: request.data }, () => {
+          console.log('✅ Whitelist updated successfully')
+          sendResponse({ success: true })
+        })
+        return true
+      
+      case 'GET_WHITELIST':
+        chrome.storage.local.get(['whitelist'], (result) => {
+          console.log('📋 Getting whitelist:', result.whitelist)
+          sendResponse({ whitelist: result.whitelist || [] })
+        })
+        return true
+      
+      case 'UPDATE_BLACKLIST':
+        console.log('📝 Updating blacklist:', request.data)
+        chrome.storage.local.set({ blacklist: request.data }, () => {
+          console.log('✅ Blacklist updated successfully')
+          sendResponse({ success: true })
+        })
+        return true
+      
+      case 'GET_BLACKLIST':
+        chrome.storage.local.get(['blacklist'], (result) => {
+          console.log('📋 Getting blacklist:', result.blacklist)
+          sendResponse({ blacklist: result.blacklist || [] })
+        })
+        return true
         
       default:
         sendResponse({ success: true })

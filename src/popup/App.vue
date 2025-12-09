@@ -555,29 +555,18 @@ function setupTabListener() {
 
 // 生命周期
 onMounted(async () => {
-  console.log('🎨 Popup opened, initializing...')
-  
-  // 强制刷新 store 数据（不使用缓存）
+  console.log('🎨 Popup opened')
   await securityStore.initialize()
-  
-  // 获取当前页面信息
   await getCurrentPageInfo()
-  
-  // 设置监听器
   setupStorageListener()
   setupTabListener()
   
-  // 每隔 2 秒自动刷新一次数据（仅当 popup 打开时）
-  const refreshInterval = setInterval(async () => {
-    console.log('🔄 Auto refreshing popup data...')
+  // 每2秒自动刷新一次数据
+  setInterval(async () => {
     await securityStore.loadStats()
     await securityStore.loadThreats()
     await calculatePageScore(currentFullUrl.value)
   }, 2000)
-  
-  // 当组件卸载时清除定时器
-  // 注意：在 setup 中没有 onUnmounted，但 popup 关闭时整个页面会销毁，所以定时器会自动清除
-  console.log('✅ Popup initialized with auto-refresh')
 })
 </script>
 
