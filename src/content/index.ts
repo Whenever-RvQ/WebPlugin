@@ -25,6 +25,165 @@ const pendingToasts: ThreatDetection[] = []
 let hasUserInteracted = false
 let interactionTimeout: number | null = null
 
+// 白名单标志：如果当前页面在白名单中，禁用所有检测
+let isWhitelisted = false
+
+// ===== 白名单检查 =====
+
+async function checkWhitelist() {
+  try {
+    const currentHostname = window.location.hostname
+    const result = await chrome.storage.local.get(['whitelist'])
+    const whitelist: string[] = result.whitelist || []
+    
+    console.log('🔍 白名单检查:', {
+      当前域名: currentHostname,
+      白名单数量: whitelist.length,
+      白名单内容: whitelist
+    })
+    
+    // 检查当前域名是否在白名单中
+    isWhitelisted = whitelist.some(domain => {
+      // 完全匹配或者是子域名
+      const isMatch = currentHostname === domain || currentHostname.endsWith(`.${domain}`)
+      if (isMatch) {
+        console.log(`✅ 域名匹配成功: ${currentHostname} 匹配 ${domain}`)
+      }
+      return isMatch
+    })
+    
+    if (isWhitelisted) {
+      console.log('✅ 当前网站在白名单中，已禁用所有安全检测')
+      showWhitelistNotification()
+      return true
+    } else {
+      console.log('ℹ️ 当前网站不在白名单中，正常启用安全检测')
+    }
+    
+    return false
+  } catch (error) {
+    console.error('❌ 检查白名单失败:', error)
+    return false
+  }
+}
+
+function showWhitelistNotification() {
+  // 创建白名单提醒弹窗
+  const notification = document.createElement('div')
+  notification.id = 'wsg-whitelist-notification'
+  notification.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 32px 40px;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    z-index: 2147483647;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    text-align: center;
+    min-width: 400px;
+    animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  `
+  
+  notification.innerHTML = `
+    <div style="font-size: 48px; margin-bottom: 16px;">✅</div>
+    <h2 style="margin: 0 0 12px 0; font-size: 24px; font-weight: 700;">白名单网站</h2>
+    <p style="margin: 0 0 8px 0; font-size: 16px; opacity: 0.95;">
+      当前网站已加入白名单
+    </p>
+    <p style="margin: 0 0 24px 0; font-size: 14px; opacity: 0.8;">
+      所有安全检测功能已禁用
+    </p>
+    <button 
+      type="button"
+      style="
+        background: rgba(255, 255, 255, 0.2);
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        color: white;
+        padding: 12px 32px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+      "
+      onmouseover="this.style.background='rgba(255,255,255,0.3)'; this.style.transform='scale(1.05)'"
+      onmouseout="this.style.background='rgba(255,255,255,0.2)'; this.style.transform='scale(1)'"
+      onclick="this.parentElement.style.opacity='0'; this.parentElement.style.transform='translate(-50%, -50%) scale(0.9)'; setTimeout(() => this.parentElement.remove(), 300)"
+    >
+      我知道了
+    </button>
+  `
+  
+  // 添加动画样式
+  const style = document.createElement('style')
+  style.textContent = `
+    @keyframes slideIn {
+      0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+      }
+      100% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+      }
+    }
+  `
+  document.head.appendChild(style)
+  
+  // 添加遮罩层
+  const overlay = document.createElement('div')
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 2147483646;
+    animation: fadeIn 0.3s;
+  `
+  
+  const overlayStyle = document.createElement('style')
+  overlayStyle.textContent = `
+    @keyframes fadeIn {
+      0% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+  `
+  document.head.appendChild(overlayStyle)
+  
+  // 点击遮罩层也可以关闭
+  overlay.onclick = () => {
+    notification.style.opacity = '0'
+    notification.style.transform = 'translate(-50%, -50%) scale(0.9)'
+    overlay.style.opacity = '0'
+    setTimeout(() => {
+      notification.remove()
+      overlay.remove()
+    }, 300)
+  }
+  
+  document.body.appendChild(overlay)
+  document.body.appendChild(notification)
+  
+  // 3秒后自动关闭
+  setTimeout(() => {
+    if (notification.parentElement) {
+      notification.style.opacity = '0'
+      notification.style.transform = 'translate(-50%, -50%) scale(0.9)'
+      overlay.style.opacity = '0'
+      setTimeout(() => {
+        notification.remove()
+        overlay.remove()
+      }, 300)
+    }
+  }, 3000)
+}
+
 // ===== 基础工具 =====
 
 function hasChromeRuntime(): boolean {
@@ -227,6 +386,11 @@ function flushPendingToasts() {
 }
 
 function handleThreat(threat: ThreatDetection, options: { notifyBackground?: boolean } = {}) {
+  // 如果在白名单中，直接返回，不处理威胁
+  if (isWhitelisted) {
+    return
+  }
+
   // 改进日志输出格式
   console.warn('🚨 威胁检测:', {
     类型: getThreatTypeLabel(threat.type),
@@ -350,8 +514,15 @@ function interceptWindowOpen() {
 
 // ===== 启动监控 =====
 
-function startAfterDomReady() {
+async function startAfterDomReady() {
   flushPendingToasts()
+
+  // 检查白名单，如果在白名单中则禁用所有检测
+  const inWhitelist = await checkWhitelist()
+  if (inWhitelist) {
+    console.log('⏸️ 白名单网站，已禁用所有安全检测')
+    return
+  }
 
   // 通知 background 页面导航，清除该页面的历史威胁
   if (hasChromeRuntime()) {
@@ -389,6 +560,11 @@ function startAfterDomReady() {
   }
   
   function markUserInteraction() {
+    // 如果在白名单中，忽略所有交互
+    if (isWhitelisted) {
+      return
+    }
+    
     if (!hasUserInteracted) {
       hasUserInteracted = true
       console.log('👆 检测到用户交互，启动监控')

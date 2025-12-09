@@ -1,0 +1,25 @@
+# 白名单测试文件
+# 格式：一行一个网址（支持完整URL或域名）
+# 注释行以 # 开头
+
+# 常用可信网站
+github.com
+www.github.com
+stackoverflow.com
+www.stackoverflow.com
+google.com
+www.google.com
+microsoft.com
+www.microsoft.com
+# Twitter/X
+x.com
+www.x.com
+twitter.com
+www.twitter.com
+# 测试本地开发
+localhost
+127.0.0.1
+# 测试子域名
+docs.github.com
+api.github.com
+x.com

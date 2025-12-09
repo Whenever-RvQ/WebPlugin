@@ -5,8 +5,8 @@
     "src": "../../../../@crx/manifest",
     "isEntry": true
   },
-  "__plugin-vue_export-helper-D_7V09kH.js": {
-    "file": "assets/_plugin-vue_export-helper-D_7V09kH.js",
+  "__plugin-vue_export-helper-B4IZUjjT.js": {
+    "file": "assets/_plugin-vue_export-helper-B4IZUjjT.js",
     "name": "_plugin-vue_export-helper",
     "imports": [
       "_security-6RDsp77e.js"
@@ -19,9 +19,9 @@
     "file": "assets/_plugin-vue_export-helper-TOMzp7mW.css",
     "src": "__plugin-vue_export-helper-TOMzp7mW.css"
   },
-  "_index.ts-loader-C9oc0Otd.js": {
-    "file": "assets/index.ts-loader-C9oc0Otd.js",
-    "src": "_index.ts-loader-C9oc0Otd.js"
+  "_index.ts-loader-1lifvrP2.js": {
+    "file": "assets/index.ts-loader-1lifvrP2.js",
+    "src": "_index.ts-loader-1lifvrP2.js"
   },
   "_security-6RDsp77e.js": {
     "file": "assets/security-6RDsp77e.js",
@@ -34,7 +34,7 @@
     "isEntry": true
   },
   "src/content/index.ts": {
-    "file": "assets/index.ts-96U6PxQm.js",
+    "file": "assets/index.ts-CuFRIjmy.js",
     "name": "index.ts",
     "src": "src/content/index.ts",
     "isEntry": true,
@@ -43,29 +43,29 @@
     ]
   },
   "src/options/index.html": {
-    "file": "assets/index.html-C4chcAlE.js",
+    "file": "assets/index.html-Dj6DRoCR.js",
     "name": "index.html",
     "src": "src/options/index.html",
     "isEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-D_7V09kH.js",
+      "__plugin-vue_export-helper-B4IZUjjT.js",
       "_security-6RDsp77e.js"
     ],
     "css": [
-      "assets/index-qYwkwv8x.css"
+      "assets/index-BKcuh3qU.css"
     ]
   },
   "src/popup/index.html": {
-    "file": "assets/index.html-Ers8rSbL.js",
+    "file": "assets/index.html-DZIDF2IW.js",
     "name": "index.html",
     "src": "src/popup/index.html",
     "isEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-D_7V09kH.js",
+      "__plugin-vue_export-helper-B4IZUjjT.js",
       "_security-6RDsp77e.js"
     ],
     "css": [
-      "assets/index-DHn2XydR.css"
+      "assets/index-CbaM0lqg.css"
     ]
   }
 }

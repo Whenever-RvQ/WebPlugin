@@ -70,6 +70,97 @@
               <el-switch v-model="settings.strictMode" />
             </div>
           </div>
+
+          <h3>黑白名单管理</h3>
+          <div class="setting-group">
+            <div class="list-manager">
+              <div class="list-section">
+                <h4>白名单</h4>
+                <p class="list-description">白名单内的网站将被信任，不会进行任何安全检测</p>
+                <div class="file-upload-area">
+                  <input 
+                    ref="whitelistFileInput" 
+                    type="file" 
+                    accept=".csv" 
+                    @change="handleWhitelistUpload"
+                    style="display: none;"
+                  />
+                  <el-button 
+                    type="primary" 
+                    @click="whitelistFileInput?.click()"
+                  >
+                    📄 导入白名单 (CSV)
+                  </el-button>
+                  <span class="file-hint">格式：一行一个网址</span>
+                </div>
+                <div v-if="whitelist.length > 0" class="list-display">
+                  <div class="list-count">已添加 {{ whitelist.length }} 个网址</div>
+                  <div class="list-items">
+                    <el-tag 
+                      v-for="(url, index) in whitelist" 
+                      :key="index"
+                      closable
+                      @close="removeFromWhitelist(index)"
+                      class="list-tag"
+                    >
+                      {{ url }}
+                    </el-tag>
+                  </div>
+                  <el-button 
+                    type="danger" 
+                    size="small" 
+                    @click="clearWhitelist"
+                    style="margin-top: 12px;"
+                  >
+                    清空白名单
+                  </el-button>
+                </div>
+              </div>
+
+              <div class="list-section">
+                <h4>黑名单</h4>
+                <p class="list-description">黑名单内的网站将被标记（暂不处理）</p>
+                <div class="file-upload-area">
+                  <input 
+                    ref="blacklistFileInput" 
+                    type="file" 
+                    accept=".csv" 
+                    @change="handleBlacklistUpload"
+                    style="display: none;"
+                  />
+                  <el-button 
+                    @click="blacklistFileInput?.click()"
+                  >
+                    📄 导入黑名单 (CSV)
+                  </el-button>
+                  <span class="file-hint">格式：一行一个网址</span>
+                </div>
+                <div v-if="blacklist.length > 0" class="list-display">
+                  <div class="list-count">已添加 {{ blacklist.length }} 个网址</div>
+                  <div class="list-items">
+                    <el-tag 
+                      v-for="(url, index) in blacklist" 
+                      :key="index"
+                      closable
+                      type="danger"
+                      @close="removeFromBlacklist(index)"
+                      class="list-tag"
+                    >
+                      {{ url }}
+                    </el-tag>
+                  </div>
+                  <el-button 
+                    type="danger" 
+                    size="small" 
+                    @click="clearBlacklist"
+                    style="margin-top: 12px;"
+                  >
+                    清空黑名单
+                  </el-button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </el-tab-pane>
 
@@ -233,6 +324,8 @@ import { ElMessage } from 'element-plus'
 import { useSecurityStore } from '../stores/security'
 import * as echarts from 'echarts'
 
+declare const chrome: typeof chrome
+
 const securityStore = useSecurityStore()
 const activeTab = ref('general')
 
@@ -246,6 +339,12 @@ let pieChart: echarts.ECharts | null = null
 let barChart: echarts.ECharts | null = null
 let doughnutChart: echarts.ECharts | null = null
 let radarChart: echarts.ECharts | null = null
+
+// 黑白名单
+const whitelist = ref<string[]>([])
+const blacklist = ref<string[]>([])
+const whitelistFileInput = ref<HTMLInputElement>()
+const blacklistFileInput = ref<HTMLInputElement>()
 
 // 计算属性
 const settings = computed(() => securityStore.settings)
@@ -629,9 +728,203 @@ watch(() => stats.value, () => {
   }
 }, { deep: true })
 
+// 黑白名单管理
+async function loadLists() {
+  try {
+    const result = await chrome.storage.local.get(['whitelist', 'blacklist'])
+    
+    // 确保加载的数据是数组
+    whitelist.value = Array.isArray(result.whitelist) ? result.whitelist : []
+    blacklist.value = Array.isArray(result.blacklist) ? result.blacklist : []
+    
+    console.log('📋 加载黑白名单:', {
+      whitelist: whitelist.value.length,
+      blacklist: blacklist.value.length
+    })
+  } catch (error) {
+    console.error('加载黑白名单失败:', error)
+    // 出错时确保初始化为空数组
+    whitelist.value = []
+    blacklist.value = []
+  }
+}
+
+async function saveLists() {
+  try {
+    // 确保保存的是数组
+    const whitelistToSave = Array.isArray(whitelist.value) ? whitelist.value : []
+    const blacklistToSave = Array.isArray(blacklist.value) ? blacklist.value : []
+    
+    await chrome.storage.local.set({
+      whitelist: whitelistToSave,
+      blacklist: blacklistToSave
+    })
+    
+    console.log('💾 保存黑白名单:', {
+      whitelist: whitelistToSave.length,
+      blacklist: blacklistToSave.length
+    })
+  } catch (error) {
+    console.error('保存黑白名单失败:', error)
+    throw error
+  }
+}
+
+function parseCSV(content: string): string[] {
+  try {
+    if (!content || typeof content !== 'string') {
+      console.error('CSV 内容无效:', content)
+      return []
+    }
+    
+    const lines = content.split('\n')
+    console.log(`CSV 文件共 ${lines.length} 行`)
+    
+    const urls = lines
+      .map(line => line.trim())
+      .filter(line => line && !line.startsWith('#')) // 过滤空行和注释
+      .map(line => {
+        // 清理URL（去除协议前缀，只保留域名）
+        try {
+          const url = new URL(line.startsWith('http') ? line : `http://${line}`)
+          return url.hostname
+        } catch {
+          // 如果不是有效URL，尝试作为域名处理
+          return line.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0]
+        }
+      })
+      .filter(url => url) // 过滤无效项
+    
+    console.log(`解析出 ${urls.length} 个有效网址`)
+    return urls
+  } catch (error) {
+    console.error('解析 CSV 失败:', error)
+    return []
+  }
+}
+
+async function handleWhitelistUpload(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  
+  console.log('📄 白名单上传事件触发', { file: file?.name, size: file?.size })
+  
+  if (!file) {
+    console.warn('没有选择文件')
+    return
+  }
+  
+  try {
+    console.log('开始读取文件...')
+    const content = await file.text()
+    console.log('文件读取成功，内容长度:', content.length)
+    
+    const urls = parseCSV(content)
+    console.log('CSV 解析结果:', urls)
+    
+    if (urls.length === 0) {
+      ElMessage.warning('CSV文件为空或格式不正确')
+      return
+    }
+    
+    // 确保 whitelist.value 是数组
+    const currentWhitelist = Array.isArray(whitelist.value) ? whitelist.value : []
+    console.log('当前白名单:', currentWhitelist)
+    
+    // 合并去重
+    const newUrls = [...new Set([...currentWhitelist, ...urls])]
+    console.log('合并后白名单:', newUrls)
+    
+    whitelist.value = newUrls
+    await saveLists()
+    
+    console.log('✅ 白名单保存成功')
+    ElMessage.success(`成功导入 ${urls.length} 个白名单网址`)
+  } catch (error) {
+    console.error('❌ 读取文件失败:', error)
+    ElMessage.error(`读取文件失败: ${error instanceof Error ? error.message : '未知错误'}`)
+  } finally {
+    // 清空input，允许重复选择同一文件
+    console.log('清空文件输入框')
+    input.value = ''
+  }
+}
+
+async function handleBlacklistUpload(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  
+  console.log('📄 黑名单上传事件触发', { file: file?.name, size: file?.size })
+  
+  if (!file) {
+    console.warn('没有选择文件')
+    return
+  }
+  
+  try {
+    console.log('开始读取文件...')
+    const content = await file.text()
+    console.log('文件读取成功，内容长度:', content.length)
+    
+    const urls = parseCSV(content)
+    console.log('CSV 解析结果:', urls)
+    
+    if (urls.length === 0) {
+      ElMessage.warning('CSV文件为空或格式不正确')
+      return
+    }
+    
+    // 确保 blacklist.value 是数组
+    const currentBlacklist = Array.isArray(blacklist.value) ? blacklist.value : []
+    console.log('当前黑名单:', currentBlacklist)
+    
+    // 合并去重
+    const newUrls = [...new Set([...currentBlacklist, ...urls])]
+    console.log('合并后黑名单:', newUrls)
+    
+    blacklist.value = newUrls
+    await saveLists()
+    
+    console.log('✅ 黑名单保存成功')
+    ElMessage.success(`成功导入 ${urls.length} 个黑名单网址`)
+  } catch (error) {
+    console.error('❌ 读取文件失败:', error)
+    ElMessage.error(`读取文件失败: ${error instanceof Error ? error.message : '未知错误'}`)
+  } finally {
+    // 清空input，允许重复选择同一文件
+    console.log('清空文件输入框')
+    input.value = ''
+  }
+}
+
+async function removeFromWhitelist(index: number) {
+  whitelist.value.splice(index, 1)
+  await saveLists()
+  ElMessage.success('已从白名单移除')
+}
+
+async function removeFromBlacklist(index: number) {
+  blacklist.value.splice(index, 1)
+  await saveLists()
+  ElMessage.success('已从黑名单移除')
+}
+
+async function clearWhitelist() {
+  whitelist.value = []
+  await saveLists()
+  ElMessage.success('白名单已清空')
+}
+
+async function clearBlacklist() {
+  blacklist.value = []
+  await saveLists()
+  ElMessage.success('黑名单已清空')
+}
+
 // 生命周期
 onMounted(async () => {
   await securityStore.initialize()
+  await loadLists()
   
   // 如果默认打开统计页面，初始化图表
   if (activeTab.value === 'stats') {
@@ -716,6 +1009,67 @@ onMounted(async () => {
   margin: 0;
   color: #666;
   font-size: 12px;
+}
+
+.list-manager {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  padding: 16px 0;
+}
+
+.list-section h4 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.list-description {
+  margin: 0 0 16px 0;
+  color: #666;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.file-upload-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.file-hint {
+  color: #999;
+  font-size: 12px;
+}
+
+.list-display {
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.list-count {
+  color: #666;
+  font-size: 13px;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.list-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.list-tag {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .stats-cards {

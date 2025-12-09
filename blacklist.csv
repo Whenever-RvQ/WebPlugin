@@ -1,0 +1,15 @@
+# 黑名单测试文件
+# 格式：一行一个网址（支持完整URL或域名）
+# 注释行以 # 开头
+
+# 示例恶意网站（仅用于测试）
+example-malicious-site.com
+www.example-malicious-site.com
+test-phishing-site.com
+suspicious-domain.net
+fake-bank-site.com
+malware-test-domain.org
+# 测试子域名
+api.example-malicious-site.com
+admin.test-phishing-site.com
+
