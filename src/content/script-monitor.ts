@@ -67,77 +67,77 @@ export class ScriptMonitor {
   // 拦截危险函数（在页面环境中）
   private interceptDangerousFunctions() {
     try {
-      const injectedScript = document.createElement('script')
-      injectedScript.textContent = `
-        (function() {
-          // 保存原始函数
-          const originalEval = window.eval;
-          const originalFunction = window.Function;
-          const originalSetTimeout = window.setTimeout;
-          const originalSetInterval = window.setInterval;
-          
-          // 拦截eval
-          window.eval = function(...args) {
-            console.warn('🚨 eval() 被调用:', args[0]?.substring(0, 100));
+    const injectedScript = document.createElement('script')
+    injectedScript.textContent = `
+      (function() {
+        // 保存原始函数
+        const originalEval = window.eval;
+        const originalFunction = window.Function;
+        const originalSetTimeout = window.setTimeout;
+        const originalSetInterval = window.setInterval;
+        
+        // 拦截eval
+        window.eval = function(...args) {
+          console.warn('🚨 eval() 被调用:', args[0]?.substring(0, 100));
+          window.postMessage({
+            type: 'WEB_SEC_GUARDIAN_ALERT',
+            function: 'eval',
+            args: args[0]?.substring(0, 200),
+            stack: new Error().stack
+          }, '*');
+          return originalEval.apply(this, args);
+        };
+        
+        // 拦截Function构造函数
+        window.Function = new Proxy(originalFunction, {
+          construct(target, args) {
+            console.warn('🚨 Function() 被调用:', args);
             window.postMessage({
               type: 'WEB_SEC_GUARDIAN_ALERT',
-              function: 'eval',
-              args: args[0]?.substring(0, 200),
+              function: 'Function',
+              args: JSON.stringify(args).substring(0, 200),
               stack: new Error().stack
             }, '*');
-            return originalEval.apply(this, args);
-          };
-          
-          // 拦截Function构造函数
-          window.Function = new Proxy(originalFunction, {
-            construct(target, args) {
-              console.warn('🚨 Function() 被调用:', args);
-              window.postMessage({
-                type: 'WEB_SEC_GUARDIAN_ALERT',
-                function: 'Function',
-                args: JSON.stringify(args).substring(0, 200),
-                stack: new Error().stack
-              }, '*');
-              return new target(...args);
-            }
-          });
-          
-          // 拦截setTimeout中的字符串
-          window.setTimeout = function(handler, ...args) {
-            if (typeof handler === 'string') {
-              console.warn('🚨 setTimeout执行字符串代码:', handler.substring(0, 100));
-              window.postMessage({
-                type: 'WEB_SEC_GUARDIAN_ALERT',
-                function: 'setTimeout',
-                args: handler.substring(0, 200)
-              }, '*');
-            }
-            return originalSetTimeout.call(this, handler, ...args);
-          };
-          
-          // 拦截setInterval中的字符串
-          window.setInterval = function(handler, ...args) {
-            if (typeof handler === 'string') {
-              console.warn('🚨 setInterval执行字符串代码:', handler.substring(0, 100));
-              window.postMessage({
-                type: 'WEB_SEC_GUARDIAN_ALERT',
-                function: 'setInterval',
-                args: handler.substring(0, 200)
-              }, '*');
-            }
-            return originalSetInterval.call(this, handler, ...args);
-          };
-          
-          console.log('🛡️ Web Security Guardian - 危险函数监控已激活');
-        })();
-      `;
-      
-      // 在所有脚本之前注入
-      (document.head || document.documentElement).insertBefore(
-        injectedScript,
-        (document.head || document.documentElement).firstChild
-      )
-      injectedScript.remove()
+            return new target(...args);
+          }
+        });
+        
+        // 拦截setTimeout中的字符串
+        window.setTimeout = function(handler, ...args) {
+          if (typeof handler === 'string') {
+            console.warn('🚨 setTimeout执行字符串代码:', handler.substring(0, 100));
+            window.postMessage({
+              type: 'WEB_SEC_GUARDIAN_ALERT',
+              function: 'setTimeout',
+              args: handler.substring(0, 200)
+            }, '*');
+          }
+          return originalSetTimeout.call(this, handler, ...args);
+        };
+        
+        // 拦截setInterval中的字符串
+        window.setInterval = function(handler, ...args) {
+          if (typeof handler === 'string') {
+            console.warn('🚨 setInterval执行字符串代码:', handler.substring(0, 100));
+            window.postMessage({
+              type: 'WEB_SEC_GUARDIAN_ALERT',
+              function: 'setInterval',
+              args: handler.substring(0, 200)
+            }, '*');
+          }
+          return originalSetInterval.call(this, handler, ...args);
+        };
+        
+        console.log('🛡️ Web Security Guardian - 危险函数监控已激活');
+      })();
+    `;
+    
+    // 在所有脚本之前注入
+    (document.head || document.documentElement).insertBefore(
+      injectedScript,
+      (document.head || document.documentElement).firstChild
+    )
+    injectedScript.remove()
     } catch (error) {
       // CSP 阻止了内联脚本注入，这是正常的安全行为
       // 插件的其他检测功能不受影响
@@ -218,25 +218,25 @@ export class ScriptMonitor {
     
     // 检查可疑模式（仅对非本地开发环境或明确可疑的脚本）
     if (!isLocalDev) {
-      this.suspiciousPatterns.forEach((pattern, patternIndex) => {
-        const matches = content.match(pattern)
-        if (matches) {
-          threats.push({
-            id: `suspicious_inline_script_${Date.now()}_${index}_${patternIndex}`,
+    this.suspiciousPatterns.forEach((pattern, patternIndex) => {
+      const matches = content.match(pattern)
+      if (matches) {
+        threats.push({
+          id: `suspicious_inline_script_${Date.now()}_${index}_${patternIndex}`,
             type: ThreatType.SUSPICIOUS_SCRIPT,
-            level: this.getPatternSeverity(pattern),
-            url: window.location.href,
-            description: `内联脚本包含可疑代码: ${this.getPatternDescription(pattern)}`,
-            timestamp: Date.now(),
-            blocked: false,
-            details: {
-              pattern: pattern.toString(),
-              matches: matches.slice(0, 3), // 只保留前3个匹配
-              scriptContent: content.substring(0, 200) // 只保留前200个字符
-            }
-          })
-        }
-      })
+          level: this.getPatternSeverity(pattern),
+          url: window.location.href,
+          description: `内联脚本包含可疑代码: ${this.getPatternDescription(pattern)}`,
+          timestamp: Date.now(),
+          blocked: false,
+          details: {
+            pattern: pattern.toString(),
+            matches: matches.slice(0, 3), // 只保留前3个匹配
+            scriptContent: content.substring(0, 200) // 只保留前200个字符
+          }
+        })
+      }
+    })
     }
     
     // 检查脚本长度（可能是混淆代码）

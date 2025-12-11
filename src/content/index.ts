@@ -27,6 +27,9 @@ let interactionTimeout: number | null = null
 
 // 白名单标志
 let isWhitelisted = false
+// 黑名单标志
+let isBlacklisted = false
+let blacklistContinue = false // 用户点击继续进入后设为 true
 
 // ===== 白名单检查 =====
 
@@ -63,7 +66,7 @@ async function checkWhitelist(): Promise<boolean> {
     console.error('❌ 检查白名单失败:', error)
     isWhitelisted = false
     return false
-  }
+    }
 }
 
 function showWhitelistNotification() {
@@ -77,6 +80,151 @@ function showWhitelistNotification() {
   document.body.appendChild(overlay)
   document.body.appendChild(notification)
   setTimeout(() => { if (notification.parentElement) { notification.remove(); overlay.remove() } }, 3000)
+}
+
+// ===== 黑名单检查 =====
+
+async function checkBlacklist(): Promise<boolean> {
+  try {
+    const currentHostname = window.location.hostname
+    const result = await chrome.storage.local.get(['blacklist'])
+    
+    // 确保 blacklist 是数组
+    let blacklist: string[] = []
+    if (result.blacklist && Array.isArray(result.blacklist)) {
+      blacklist = result.blacklist
+    }
+    
+    console.log('🔍 黑名单检查:', { 当前域名: currentHostname, 黑名单数量: blacklist.length })
+    
+    if (blacklist.length === 0) {
+      isBlacklisted = false
+      return false
+    }
+    
+    // 检查当前域名是否在黑名单中
+    isBlacklisted = blacklist.some(domain => 
+      currentHostname === domain || currentHostname.endsWith(`.${domain}`)
+    )
+    
+    if (isBlacklisted) {
+      console.log('⚠️ 当前网站在黑名单中，显示警告弹窗')
+      return true
+    }
+    
+    return false
+  } catch (error) {
+    console.error('❌ 检查黑名单失败:', error)
+    isBlacklisted = false
+    return false
+  }
+}
+
+function showBlacklistWarning(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!document.body) {
+      resolve(false)
+      return
+    }
+    
+    // 创建全屏遮罩
+    const overlay = document.createElement('div')
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:2147483646;backdrop-filter:blur(10px)'
+    
+    // 创建警告弹窗
+    const warning = document.createElement('div')
+    warning.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:linear-gradient(135deg,#ff416c,#ff4b2b);color:white;padding:48px;border-radius:24px;box-shadow:0 30px 90px rgba(255,65,108,0.5);z-index:2147483647;text-align:center;width:550px;max-width:90vw;animation:warningPulse 2s ease-in-out infinite'
+    
+    // 添加脉冲动画
+    const style = document.createElement('style')
+    style.textContent = `
+      @keyframes warningPulse {
+        0%, 100% { box-shadow: 0 30px 90px rgba(255,65,108,0.5); }
+        50% { box-shadow: 0 30px 90px rgba(255,65,108,0.8), 0 0 40px rgba(255,65,108,0.6); }
+      }
+    `
+    document.head.appendChild(style)
+    
+    warning.innerHTML = `
+      <div style="font-size:72px;margin-bottom:20px;animation:shake 0.5s ease-in-out infinite">⚠️</div>
+      <h2 style="margin:0 0 16px;font-size:32px;font-weight:900;text-shadow:2px 2px 4px rgba(0,0,0,0.3)">危险网站警告</h2>
+      <p style="margin:0 0 32px;font-size:16px;opacity:0.95;line-height:1.6">
+        当前网站已被列入黑名单<br>
+        <strong style="font-size:18px">可能存在安全风险或恶意内容</strong><br>
+        <span style="font-size:14px;opacity:0.8">建议您立即离开此网站</span>
+      </p>
+      <div style="display:flex;gap:16px;justify-content:center">
+        <button id="blacklistExit" style="background:rgba(255,255,255,0.95);color:#ff4b2b;padding:16px 40px;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;transition:all 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.2)">
+          🚪 退出网站
+        </button>
+        <button id="blacklistContinue" style="background:rgba(255,255,255,0.15);border:2px solid rgba(255,255,255,0.5);color:white;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;transition:all 0.3s">
+          ⚡ 继续进入
+        </button>
+      </div>
+      <p style="margin:24px 0 0;font-size:12px;opacity:0.6">
+        网站: ${window.location.hostname}
+      </p>
+    `
+    
+    // 添加震动动画
+    const shakeStyle = document.createElement('style')
+    shakeStyle.textContent = `
+      @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px) rotate(-5deg); }
+        75% { transform: translateX(5px) rotate(5deg); }
+      }
+    `
+    document.head.appendChild(shakeStyle)
+    
+    document.body.appendChild(overlay)
+    document.body.appendChild(warning)
+    
+    // 退出按钮
+    const exitBtn = document.getElementById('blacklistExit')
+    if (exitBtn) {
+      exitBtn.onmouseover = () => {
+        exitBtn.style.transform = 'scale(1.05)'
+        exitBtn.style.boxShadow = '0 6px 20px rgba(0,0,0,0.3)'
+      }
+      exitBtn.onmouseout = () => {
+        exitBtn.style.transform = 'scale(1)'
+        exitBtn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)'
+      }
+      exitBtn.onclick = () => {
+        console.log('🚪 用户选择退出黑名单网站')
+        warning.remove()
+        overlay.remove()
+        style.remove()
+        shakeStyle.remove()
+        // 重定向到默认页面
+        window.location.href = 'about:blank'
+        resolve(false)
+      }
+    }
+    
+    // 继续按钮
+    const continueBtn = document.getElementById('blacklistContinue')
+    if (continueBtn) {
+      continueBtn.onmouseover = () => {
+        continueBtn.style.background = 'rgba(255,255,255,0.25)'
+        continueBtn.style.transform = 'scale(1.05)'
+      }
+      continueBtn.onmouseout = () => {
+        continueBtn.style.background = 'rgba(255,255,255,0.15)'
+        continueBtn.style.transform = 'scale(1)'
+      }
+      continueBtn.onclick = () => {
+        console.log('⚡ 用户选择继续进入黑名单网站')
+        warning.remove()
+        overlay.remove()
+        style.remove()
+        shakeStyle.remove()
+        blacklistContinue = true
+        resolve(true)
+      }
+    }
+  })
 }
 
 // ===== 基础工具 =====
@@ -154,9 +302,9 @@ function showThreatToast(threat: ThreatDetection) {
     container = document.createElement('div')
     container.id = containerId
     container.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
+    position: fixed;
+    top: 20px;
+    right: 20px;
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -216,7 +364,7 @@ function showThreatToast(threat: ThreatDetection) {
     <button type="button" aria-label="关闭警告"
       style="background: rgba(255,255,255,0.2); border: none; color: #fff; font-size: 20px; cursor: pointer; line-height: 1; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0;">×</button>
   `
-
+  
   // 添加动画样式
   if (!document.getElementById('wsg-toast-animations')) {
     const style = document.createElement('style')
@@ -234,7 +382,7 @@ function showThreatToast(threat: ThreatDetection) {
     `
     document.head.appendChild(style)
   }
-
+  
   const closeButton = toast.querySelector('button')
   closeButton?.addEventListener('mouseenter', () => {
     if (closeButton instanceof HTMLElement) {
@@ -264,7 +412,7 @@ function showThreatToast(threat: ThreatDetection) {
       toast.style.transform = 'translateX(0) scale(1)'
     })
   })
-
+  
   // 自动消失
   setTimeout(() => {
     toast.style.opacity = '0'
@@ -345,7 +493,7 @@ function runBaselineChecks() {
       blocked: false
     }
     handleThreat(threat, { notifyBackground: true })
-  }
+}
 }
 
 function evaluateUrlRisk(url: string, source: string): boolean {
@@ -417,6 +565,18 @@ async function startAfterDomReady() {
   if (inWhitelist) {
     console.log('⏸️ 白名单网站，已禁用所有安全检测')
     return
+  }
+
+  // 检查黑名单，如果在黑名单中则显示警告
+  const inBlacklist = await checkBlacklist()
+  if (inBlacklist && !blacklistContinue) {
+    console.log('⚠️ 黑名单网站，显示警告弹窗')
+    const shouldContinue = await showBlacklistWarning()
+    if (!shouldContinue) {
+      console.log('🚫 用户拒绝进入黑名单网站')
+      return
+    }
+    console.log('✅ 用户选择继续进入黑名单网站')
   }
 
   // 通知 background 页面导航，清除该页面的历史威胁
