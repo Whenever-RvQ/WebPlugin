@@ -219,6 +219,9 @@ declare const chrome: any
 
 const securityStore = useSecurityStore()
 
+// OpenRouter API配置（统一管理）
+const OPENROUTER_API_KEY = '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'
+
 // 响应式数据
 const isScanning = ref(false)
 const currentUrl = ref('加载中...')
@@ -590,12 +593,10 @@ async function scanCurrentPage() {
     }
     
     // 调用AI API进行分析
-    const apiKey = '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'
-    
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'HTTP-Referer': 'https://github.com/web-security-guardian',
         'X-Title': 'Web Security Guardian',
         'Content-Type': 'application/json'
@@ -745,12 +746,10 @@ async function detectPhishing() {
   
   try {
     // 使用OpenRouter免费API (deepseek-r1t2-chimera模型)
-    const apiKey = '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'
-    
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'HTTP-Referer': 'https://github.com/web-security-guardian', // 可选：用于OpenRouter排名
         'X-Title': 'Web Security Guardian', // 可选：用于OpenRouter排名
         'Content-Type': 'application/json'
