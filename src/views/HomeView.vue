@@ -6,6 +6,20 @@ const xssInput2 = ref('<img src=x onerror="console.log(\'XSS\')">')
 const xssInput3 = ref('<a href="javascript:console.log(\'XSS\')">点击<\/a>')
 const obfuscatedCode = ref('var _0x1a2b=["\\x63\\x6F\\x6E\\x73\\x6F\\x6C\\x65","\\x6C\\x6F\\x67","\\x48\\x65\\x6C\\x6C\\x6F"];window[_0x1a2b[0]][_0x1a2b[1]](_0x1a2b[2]);')
 const trackerStatus = ref<string[]>([])
+const maliciousUrlResults = ref<Record<string, string>>({})
+const customUrlInput = ref('http://malware-example.com')
+const customUrlResult = ref('')
+const batchTestResults = ref<Array<{ url: string; status: string }>>([])
+const iframeMaliciousResult = ref('')
+
+// 内置的恶意URL列表（与background script中的一致）
+const testMaliciousUrls = [
+  'http://malware-example.com',
+  'http://phishing-test.net',
+  'http://suspicious-site.org',
+  'http://fake-bank.com',
+  'http://scam-lottery.net'
+]
 
 function testXSS1() {
   const payload = xssInput1.value.trim()
@@ -151,6 +165,168 @@ function loadMixpanel() {
   )
 }
 
+// 恶意URL测试函数
+function testMaliciousUrl(url: string, index: number) {
+  console.log('🔍 测试恶意URL:', url)
+  maliciousUrlResults.value[`result-${index}`] = '⏳ 检测中...'
+  
+  // 创建一个隐藏的iframe尝试加载URL
+  const iframe = document.createElement('iframe')
+  iframe.style.display = 'none'
+  iframe.src = url
+  
+  let resolved = false
+  
+  iframe.onerror = () => {
+    if (!resolved) {
+      resolved = true
+      console.log('✅ URL被阻止:', url)
+      maliciousUrlResults.value[`result-${index}`] = '✅ 已被阻止'
+      setTimeout(() => iframe.remove(), 100)
+    }
+  }
+  
+  iframe.onload = () => {
+    if (!resolved) {
+      resolved = true
+      console.log('⚠️ URL未被阻止:', url)
+      maliciousUrlResults.value[`result-${index}`] = '⚠️ 未被阻止'
+      setTimeout(() => iframe.remove(), 100)
+    }
+  }
+  
+  document.body.appendChild(iframe)
+  
+  // 5秒后超时
+  setTimeout(() => {
+    if (!resolved) {
+      resolved = true
+      maliciousUrlResults.value[`result-${index}`] = '⏱️ 检测超时'
+      iframe.remove()
+    }
+  }, 5000)
+}
+
+function testCustomUrl() {
+  const url = customUrlInput.value.trim()
+  
+  if (!url) {
+    customUrlResult.value = '❌ 请输入URL'
+    return
+  }
+  
+  console.log('🔍 检测自定义URL:', url)
+  customUrlResult.value = '⏳ 正在检测...'
+  
+  // 尝试通过fetch检测
+  fetch(url, { mode: 'no-cors', method: 'HEAD' })
+    .then(() => {
+      customUrlResult.value = `⚠️ URL可访问: ${url}\n该URL未在恶意URL列表中，或未被阻止`
+      console.log('URL可访问:', url)
+    })
+    .catch((error: Error) => {
+      customUrlResult.value = `✅ URL被阻止或无法访问: ${url}\n错误: ${error.message}`
+      console.log('URL被阻止或无法访问:', error)
+    })
+}
+
+function testIframeMalicious() {
+  iframeMaliciousResult.value = '⏳ 正在加载...'
+  
+  const iframe = document.createElement('iframe')
+  iframe.src = 'http://malware-example.com'
+  iframe.style.width = '100%'
+  iframe.style.height = '200px'
+  iframe.style.border = '2px solid #dee2e6'
+  iframe.style.borderRadius = '8px'
+  iframe.style.display = 'none'
+  
+  let resolved = false
+  
+  iframe.onerror = () => {
+    if (!resolved) {
+      resolved = true
+      iframeMaliciousResult.value = '✅ 恶意URL在iframe中被成功阻止'
+      console.log('✅ iframe加载恶意URL被阻止')
+      setTimeout(() => iframe.remove(), 100)
+    }
+  }
+  
+  iframe.onload = () => {
+    if (!resolved) {
+      resolved = true
+      iframeMaliciousResult.value = '⚠️ 恶意URL在iframe中未被阻止'
+      console.log('⚠️ iframe加载恶意URL未被阻止')
+      setTimeout(() => iframe.remove(), 3000)
+    }
+  }
+  
+  document.body.appendChild(iframe)
+  
+  // 5秒后超时
+  setTimeout(() => {
+    if (!resolved) {
+      resolved = true
+      iframeMaliciousResult.value = '⏱️ iframe加载超时'
+      iframe.remove()
+    }
+  }, 5000)
+}
+
+function batchTestUrls() {
+  batchTestResults.value = []
+  console.log('🔍 开始批量测试恶意URL')
+  
+  let completed = 0
+  const results: Array<{ url: string; status: string }> = []
+  
+  testMaliciousUrls.forEach((url, index) => {
+    const img = new Image()
+    img.src = url + '/favicon.ico'
+    
+    let resolved = false
+    
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true
+        results[index] = { url, status: '✅ 被阻止或超时' }
+        completed++
+        updateBatchResults()
+      }
+    }, 2000)
+    
+    img.onerror = () => {
+      if (!resolved) {
+        resolved = true
+        clearTimeout(timeout)
+        results[index] = { url, status: '✅ 被阻止' }
+        completed++
+        updateBatchResults()
+        console.log('✅ URL被阻止:', url)
+      }
+    }
+    
+    img.onload = () => {
+      if (!resolved) {
+        resolved = true
+        clearTimeout(timeout)
+        results[index] = { url, status: '⚠️ 未被阻止' }
+        completed++
+        updateBatchResults()
+        console.log('⚠️ URL未被阻止:', url)
+      }
+    }
+  })
+  
+  function updateBatchResults() {
+    batchTestResults.value = [...results].filter(r => r)
+    if (completed === testMaliciousUrls.length) {
+      const blocked = results.filter(r => r.status.includes('阻止')).length
+      console.log(`📊 批量测试完成: ${blocked}/${testMaliciousUrls.length} 个URL被阻止`)
+    }
+  }
+}
+
 function openMaliciousUrl(url: string) {
   console.log('恶意URL访问测试 - 尝试打开:', url)
   window.open(url, '_blank', 'noopener')
@@ -186,18 +362,75 @@ onMounted(() => {
 
       <section class="test-section">
         <h2>恶意URL访问测试 <span class="status testing">Testing</span></h2>
+        
         <div class="test-item">
-          <h3>1. 模拟驱动下载</h3>
-          <!-- <button class="danger" @click="openMaliciousUrl('http://malware-test.invalid/drive-by-download.exe')">
-            打开恶意下载链接
-          </button>
-          <button class="danger" @click="fetchMaliciousResource('http://malware-test.invalid/payload.js')">
-            尝试静默请求恶意脚本
-          </button> -->
-          <button class="danger" @click="injectMaliciousIframe('http://exploit-kit.invalid/landing')">
-            注入隐藏iframe
-          </button>
+          <h3>1. 内置恶意URL测试</h3>
+          <!-- <p style="margin-bottom: 12px; color: #666;">以下是插件内置的恶意URL列表，尝试访问这些URL会被阻止：</p> -->
+          <div class="malicious-url-tests">
+            <div v-for="(url, index) in testMaliciousUrls" :key="url" class="url-test-row">
+              <button @click="testMaliciousUrl(url, index + 1)">
+                测试: {{ url.replace('http://', '') }}
+              </button>
+              <!-- <span 
+                class="test-result" 
+                :class="{
+                  'testing': maliciousUrlResults[`result-${index + 1}`]?.includes('检测中'),
+                  'blocked': maliciousUrlResults[`result-${index + 1}`]?.includes('阻止'),
+                  'failed': maliciousUrlResults[`result-${index + 1}`]?.includes('未被阻止')
+                }"
+              >
+                {{ maliciousUrlResults[`result-${index + 1}`] || '等待测试' }}
+              </span> -->
+            </div>
+          </div>
+          <!-- <p class="warning" style="margin-top: 12px;">⚠️ 这些URL仅用于测试，不会真正访问</p> -->
         </div>
+
+        <!-- <div class="test-item">
+          <h3>2. 自定义URL检测</h3>
+          <p style="margin-bottom: 12px; color: #666;">输入任意URL测试插件的检测功能：</p>
+          <input 
+            v-model="customUrlInput" 
+            placeholder="输入要测试的URL，例如：http://example.com" 
+            @keyup.enter="testCustomUrl"
+          />
+          <button @click="testCustomUrl">检测URL</button>
+          <div v-if="customUrlResult" class="custom-result" :class="{
+            'success': customUrlResult.includes('被阻止'),
+            'warning': customUrlResult.includes('可访问'),
+            'error': customUrlResult.includes('请输入')
+          }">
+            <pre>{{ customUrlResult }}</pre>
+          </div>
+        </div> -->
+
+        <div class="test-item">
+          <h3>2. iframe加载恶意URL</h3>
+          <p style="margin-bottom: 12px; color: #666;">尝试在iframe中加载恶意URL（应被阻止）：</p>
+          <button @click="testIframeMalicious">在iframe中加载恶意网站</button>
+          <!-- <div v-if="iframeMaliciousResult" class="iframe-result" :class="{
+            'success': iframeMaliciousResult.includes('阻止'),
+            'warning': iframeMaliciousResult.includes('未被阻止'),
+            'testing': iframeMaliciousResult.includes('检测中')
+          }">
+            {{ iframeMaliciousResult }}
+          </div> -->
+        </div>
+
+        <!-- <div class="test-item">
+          <h3>4. 批量URL检测</h3>
+          <p style="margin-bottom: 12px; color: #666;">一次性测试所有内置恶意URL：</p>
+          <button @click="batchTestUrls">批量测试所有恶意URL</button>
+          <div v-if="batchTestResults.length > 0" class="batch-results">
+            <h4 style="margin: 12px 0 8px; font-size: 14px;">批量测试结果：</h4>
+            <div v-for="result in batchTestResults" :key="result.url" class="batch-result-item">
+              <span :class="{ 'blocked': result.status.includes('阻止'), 'failed': result.status.includes('未被阻止') }">
+                {{ result.status }}
+              </span>
+              <span class="url-text">{{ result.url }}</span>
+            </div>
+          </div>
+        </div> -->
       </section>
 
       <section class="test-section">
@@ -566,6 +799,158 @@ code {
   text-decoration: underline;
 }
 
+/* 恶意URL测试样式 */
+.malicious-url-tests {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fff;
+  padding: 16px;
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+}
+
+.url-test-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+.url-test-row:hover {
+  background: #e9ecef;
+}
+
+.url-test-row button {
+  margin: 0;
+  flex-shrink: 0;
+  min-width: 200px;
+}
+
+.test-result {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: #e9ecef;
+  color: #6c757d;
+  transition: all 0.3s ease;
+}
+
+.test-result.testing {
+  background: #fff3cd;
+  color: #856404;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.test-result.blocked {
+  background: #d4edda;
+  color: #155724;
+}
+
+.test-result.failed {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.custom-result,
+.iframe-result {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+  font-size: 13px;
+  line-height: 1.6;
+  transition: all 0.3s ease;
+}
+
+.custom-result pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 13px;
+}
+
+.custom-result.success,
+.iframe-result.success {
+  background: #d4edda;
+  border-color: #c3e6cb;
+  color: #155724;
+}
+
+.custom-result.warning,
+.iframe-result.warning {
+  background: #fff3cd;
+  border-color: #ffeaa7;
+  color: #856404;
+}
+
+.custom-result.error {
+  background: #f8d7da;
+  border-color: #f5c6cb;
+  color: #721c24;
+}
+
+.iframe-result.testing {
+  background: #d1ecf1;
+  border-color: #bee5eb;
+  color: #0c5460;
+}
+
+.batch-results {
+  margin-top: 12px;
+  padding: 14px;
+  background: #fff;
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+}
+
+.batch-result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  margin-bottom: 6px;
+  border-radius: 4px;
+  background: #f8f9fa;
+  font-size: 13px;
+}
+
+.batch-result-item:last-child {
+  margin-bottom: 0;
+}
+
+.batch-result-item span:first-child {
+  font-weight: 600;
+  min-width: 120px;
+}
+
+.batch-result-item .blocked {
+  color: #155724;
+}
+
+.batch-result-item .failed {
+  color: #721c24;
+}
+
+.batch-result-item .url-text {
+  color: #6c757d;
+  word-break: break-all;
+}
+
 @media (max-width: 768px) {
   .page {
     padding: 20px 16px;
@@ -604,6 +989,29 @@ code {
 
   .phishing-links {
     grid-template-columns: 1fr;
+  }
+
+  .url-test-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .url-test-row button {
+    min-width: auto;
+    width: 100%;
+  }
+
+  .test-result {
+    text-align: center;
+  }
+
+  .batch-result-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .batch-result-item span:first-child {
+    min-width: auto;
   }
 }
 </style>

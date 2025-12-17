@@ -5,8 +5,8 @@
     "src": "../../../../@crx/manifest",
     "isEntry": true
   },
-  "__plugin-vue_export-helper-DthJCoou.js": {
-    "file": "assets/_plugin-vue_export-helper-DthJCoou.js",
+  "__plugin-vue_export-helper-DyC-ivGw.js": {
+    "file": "assets/_plugin-vue_export-helper-DyC-ivGw.js",
     "name": "_plugin-vue_export-helper",
     "imports": [
       "_security-6RDsp77e.js"
@@ -19,22 +19,22 @@
     "file": "assets/_plugin-vue_export-helper-TOMzp7mW.css",
     "src": "__plugin-vue_export-helper-TOMzp7mW.css"
   },
-  "_index.ts-loader-CMlIUoF6.js": {
-    "file": "assets/index.ts-loader-CMlIUoF6.js",
-    "src": "_index.ts-loader-CMlIUoF6.js"
+  "_index.ts-loader-DlPf67nH.js": {
+    "file": "assets/index.ts-loader-DlPf67nH.js",
+    "src": "_index.ts-loader-DlPf67nH.js"
   },
   "_security-6RDsp77e.js": {
     "file": "assets/security-6RDsp77e.js",
     "name": "security"
   },
   "src/background/index.ts": {
-    "file": "assets/index.ts-C_mknoW2.js",
+    "file": "assets/index.ts-MfH4Izy_.js",
     "name": "index.ts",
     "src": "src/background/index.ts",
     "isEntry": true
   },
   "src/content/index.ts": {
-    "file": "assets/index.ts-CkJh3p2X.js",
+    "file": "assets/index.ts-C6ZPqZDG.js",
     "name": "index.ts",
     "src": "src/content/index.ts",
     "isEntry": true,
@@ -43,29 +43,29 @@
     ]
   },
   "src/options/index.html": {
-    "file": "assets/index.html-D_vTZd7-.js",
+    "file": "assets/index.html-BoQ5oZVr.js",
     "name": "index.html",
     "src": "src/options/index.html",
     "isEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-DthJCoou.js",
+      "__plugin-vue_export-helper-DyC-ivGw.js",
       "_security-6RDsp77e.js"
     ],
     "css": [
-      "assets/index-CtqLKbSI.css"
+      "assets/index-DlqJdsVL.css"
     ]
   },
   "src/popup/index.html": {
-    "file": "assets/index.html-Cbpmw2e6.js",
+    "file": "assets/index.html-DMoWPRuA.js",
     "name": "index.html",
     "src": "src/popup/index.html",
     "isEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-DthJCoou.js",
+      "__plugin-vue_export-helper-DyC-ivGw.js",
       "_security-6RDsp77e.js"
     ],
     "css": [
-      "assets/index-BazJ-_5G.css"
+      "assets/index-CZiD1n8E.css"
     ]
   }
 }

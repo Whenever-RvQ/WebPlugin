@@ -28,6 +28,7 @@ import { calculateSecurityScore } from '@/utils/security'
 export const useSecurityStore = defineStore('security', () => {
   // 状态
   const settings = ref<ProtectionSettings>({
+    enabled: true,  // 总开关默认开启
     maliciousUrlProtection: true,
     xssProtection: true,
     trackerBlocking: true,

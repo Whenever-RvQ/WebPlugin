@@ -112,7 +112,7 @@
     <!-- AI钓鱼网站检测对话框 -->
     <el-dialog
       v-model="showPhishingDialog"
-      title="tuxin2AI钓鱼网站检测"
+      title="钓鱼网站检测"
       width="90%"
       :close-on-click-modal="false"
     >
@@ -158,7 +158,7 @@
     </el-dialog>
 
     <!-- 快速开关 -->
-    <div class="quick-toggles">
+    <!-- <div class="quick-toggles">
       <div class="toggle-item">
         <span>恶意URL防护</span>
         <el-switch v-model="settings.maliciousUrlProtection" @change="updateSetting" />
@@ -171,7 +171,7 @@
         <span>追踪器阻止</span>
         <el-switch v-model="settings.trackerBlocking" @change="updateSetting" />
       </div>
-    </div>
+    </div> -->
   </div>
 </template>
 

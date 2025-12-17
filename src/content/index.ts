@@ -31,6 +31,35 @@ let isWhitelisted = false
 let isBlacklisted = false
 let blacklistContinue = false // 用户点击继续进入后设为 true
 
+// 保护设置
+let protectionSettings = {
+  enabled: true,
+  maliciousUrlProtection: true,
+  xssProtection: true,
+  trackerBlocking: true,
+  formProtection: true,
+  phishingProtection: true,
+  notifications: true,
+  autoUpdate: true,
+  strictMode: false
+}
+
+// 从存储中加载设置
+chrome.storage.local.get(['protection_settings'], (result) => {
+  if (result.protection_settings) {
+    protectionSettings = { ...protectionSettings, ...result.protection_settings }
+    console.log('✅ Content script settings loaded:', protectionSettings)
+  }
+})
+
+// 监听设置变化
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local' && changes.protection_settings) {
+    protectionSettings = changes.protection_settings.newValue
+    console.log('⚙️ Content script settings updated:', protectionSettings)
+  }
+})
+
 // ===== 白名单检查 =====
 
 async function checkWhitelist(): Promise<boolean> {
@@ -106,7 +135,7 @@ async function checkBlacklist(): Promise<boolean> {
     isBlacklisted = blacklist.some(domain => 
       currentHostname === domain || currentHostname.endsWith(`.${domain}`)
     )
-    
+
     if (isBlacklisted) {
       console.log('⚠️ 当前网站在黑名单中，显示警告弹窗')
       return true
@@ -429,8 +458,39 @@ function flushPendingToasts() {
 }
 
 function handleThreat(threat: ThreatDetection, options: { notifyBackground?: boolean } = {}) {
+  // 如果总开关关闭，直接返回
+  if (!protectionSettings.enabled) {
+    console.log('⏸️ Protection disabled, threat ignored')
+    return
+  }
+
   // 如果在白名单中，直接返回
   if (isWhitelisted) {
+    return
+  }
+
+  // 根据威胁类型检查对应的开关
+  const shouldProcess = (() => {
+    switch (threat.type) {
+      case ThreatType.MALICIOUS_URL:
+        return protectionSettings.maliciousUrlProtection
+      case ThreatType.XSS_ATTACK:
+        return protectionSettings.xssProtection
+      case ThreatType.TRACKER:
+        return protectionSettings.trackerBlocking
+      case ThreatType.INSECURE_FORM:
+        return protectionSettings.formProtection
+      case ThreatType.PHISHING:
+        return protectionSettings.phishingProtection
+      case ThreatType.SUSPICIOUS_SCRIPT:
+        return protectionSettings.xssProtection  // 归类到XSS防护
+      default:
+        return true
+    }
+  })()
+
+  if (!shouldProcess) {
+    console.log(`⏭️ Threat type ${threat.type} protection is disabled`)
     return
   }
 
@@ -442,8 +502,10 @@ function handleThreat(threat: ThreatDetection, options: { notifyBackground?: boo
     详情: threat.details
   })
 
-  // 显示toast弹窗提示（允许重复）
-  showThreatToast(threat)
+  // 显示toast弹窗提示（允许重复）（如果通知开关开启）
+  if (protectionSettings.notifications) {
+    showThreatToast(threat)
+  }
 
   if (options.notifyBackground) {
     notifyBackground(threat)
@@ -478,6 +540,11 @@ document.head?.appendChild(marker)
 // ===== 辅助检测 =====
 
 function runBaselineChecks() {
+  // 检查表单防护开关
+  if (!protectionSettings.enabled || !protectionSettings.formProtection) {
+    return
+  }
+
   if (
     window.location.protocol !== 'https:' &&
     window.location.hostname !== 'localhost' &&
@@ -497,6 +564,11 @@ function runBaselineChecks() {
 }
 
 function evaluateUrlRisk(url: string, source: string): boolean {
+  // 检查钓鱼防护开关
+  if (!protectionSettings.enabled || !protectionSettings.phishingProtection) {
+    return false
+  }
+
   try {
     // 规范化 URL
     const normalizedUrl = new URL(url, window.location.href).href

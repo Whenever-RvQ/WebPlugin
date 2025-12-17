@@ -9,6 +9,30 @@
       <!-- 基本设置 -->
       <el-tab-pane label="基本设置" name="general">
         <div class="settings-section">
+          <h3>总开关</h3>
+          <div class="setting-group">
+            <div class="setting-item">
+              <div class="setting-info">
+                <h4>🚀 启用插件</h4>
+                <p>控制整个安全防护插件的启动状态</p>
+              </div>
+              <el-switch 
+                v-model="settings.enabled" 
+                :disabled="false"
+                @change="handleSettingChange"
+              />
+            </div>
+            <el-alert 
+              v-if="!settings.enabled" 
+              title="插件已禁用" 
+              type="warning" 
+              :closable="false"
+              style="margin-top: 12px;"
+            >
+              所有安全防护功能将不会工作
+            </el-alert>
+          </div>
+
           <h3>防护功能</h3>
           <div class="setting-group">
             <div class="setting-item">
@@ -16,7 +40,11 @@
                 <h4>恶意URL防护</h4>
                 <p>自动检测并阻止访问已知的恶意网站</p>
               </div>
-              <el-switch v-model="settings.maliciousUrlProtection" />
+              <el-switch 
+                v-model="settings.maliciousUrlProtection" 
+                :disabled="!settings.enabled"
+                @change="handleSettingChange"
+              />
             </div>
             
             <div class="setting-item">
@@ -24,7 +52,11 @@
                 <h4>XSS攻击防护</h4>
                 <p>检测并阻止跨站脚本攻击</p>
               </div>
-              <el-switch v-model="settings.xssProtection" />
+              <el-switch 
+                v-model="settings.xssProtection" 
+                :disabled="!settings.enabled"
+                @change="handleSettingChange"
+              />
             </div>
             
             <div class="setting-item">
@@ -32,7 +64,11 @@
                 <h4>隐私追踪阻止</h4>
                 <p>阻止第三方追踪器收集您的数据</p>
               </div>
-              <el-switch v-model="settings.trackerBlocking" />
+              <el-switch 
+                v-model="settings.trackerBlocking" 
+                :disabled="!settings.enabled"
+                @change="handleSettingChange"
+              />
             </div>
             
             <div class="setting-item">
@@ -40,7 +76,11 @@
                 <h4>表单安全检查</h4>
                 <p>检查表单提交的安全性</p>
               </div>
-              <el-switch v-model="settings.formProtection" />
+              <el-switch 
+                v-model="settings.formProtection" 
+                :disabled="!settings.enabled"
+                @change="handleSettingChange"
+              />
             </div>
             
             <div class="setting-item">
@@ -48,7 +88,11 @@
                 <h4>钓鱼网站防护</h4>
                 <p>识别并警告钓鱼网站</p>
               </div>
-              <el-switch v-model="settings.phishingProtection" />
+              <el-switch 
+                v-model="settings.phishingProtection" 
+                :disabled="!settings.enabled"
+                @change="handleSettingChange"
+              />
             </div>
           </div>
 
@@ -59,7 +103,11 @@
                 <h4>安全通知</h4>
                 <p>当检测到威胁时显示通知</p>
               </div>
-              <el-switch v-model="settings.notifications" />
+              <el-switch 
+                v-model="settings.notifications" 
+                :disabled="!settings.enabled"
+                @change="handleSettingChange"
+              />
             </div>
             
             <div class="setting-item">
@@ -67,7 +115,11 @@
                 <h4>严格模式</h4>
                 <p>启用更严格的安全检查</p>
               </div>
-              <el-switch v-model="settings.strictMode" />
+              <el-switch 
+                v-model="settings.strictMode" 
+                :disabled="!settings.enabled"
+                @change="handleSettingChange"
+              />
             </div>
           </div>
 
@@ -324,7 +376,7 @@ import { ElMessage } from 'element-plus'
 import { useSecurityStore } from '../stores/security'
 import * as echarts from 'echarts'
 
-declare const chrome: typeof chrome
+declare const chrome: any
 
 const securityStore = useSecurityStore()
 const activeTab = ref('general')
@@ -346,8 +398,20 @@ const blacklist = ref<string[]>([])
 const whitelistFileInput = ref<HTMLInputElement>()
 const blacklistFileInput = ref<HTMLInputElement>()
 
+// 设置状态
+const settings = ref({
+  enabled: true,
+  maliciousUrlProtection: true,
+  xssProtection: true,
+  trackerBlocking: true,
+  formProtection: true,
+  phishingProtection: true,
+  notifications: true,
+  autoUpdate: true,
+  strictMode: false
+})
+
 // 计算属性
-const settings = computed(() => securityStore.settings)
 const stats = computed(() => securityStore.stats)
 const recentThreats = computed(() => securityStore.recentThreats)
 
@@ -395,18 +459,74 @@ function formatDateTime(timestamp: number) {
   return new Date(timestamp).toLocaleString('zh-CN')
 }
 
+// 加载设置
+async function loadSettings() {
+  try {
+    console.log('🔄 开始加载设置...')
+    
+    // 通过 background 获取设置
+    const response = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' })
+    
+    console.log('📦 从 background 获取的设置:', response)
+    
+    // 确保加载的数据有效
+    if (response && typeof response === 'object') {
+      settings.value = { ...settings.value, ...response }
+    }
+    
+    console.log('✅ 加载设置成功:', settings.value)
+  } catch (error) {
+    console.error('❌ 加载设置失败:', error)
+  }
+}
+
+// 保存设置
 async function saveSettings() {
   try {
+    console.log('💾 准备保存设置:', settings.value)
+    
+    // 通过 background 保存设置
+    const result = await chrome.runtime.sendMessage({
+      type: 'UPDATE_SETTINGS',
+      data: settings.value
+    })
+    
+    console.log('✅ 保存设置成功:', result)
+    
+    // 同步到 store
     await securityStore.updateSettings(settings.value)
+    
     ElMessage.success('设置已保存')
   } catch (error) {
+    console.error('❌ 保存设置失败:', error)
     ElMessage.error('保存设置失败')
+  }
+}
+
+// 处理设置变化（自动保存）
+async function handleSettingChange() {
+  try {
+    console.log('⚙️ 设置变化，自动保存:', settings.value)
+    
+    // 通过 background 保存设置
+    await chrome.runtime.sendMessage({
+      type: 'UPDATE_SETTINGS',
+      data: settings.value
+    })
+    
+    // 同步到 store
+    await securityStore.updateSettings(settings.value)
+    
+    console.log('✅ 设置自动保存成功')
+  } catch (error) {
+    console.error('❌ 自动保存设置失败:', error)
   }
 }
 
 async function resetSettings() {
   try {
-    await securityStore.updateSettings({
+    const defaultSettings = {
+      enabled: true,
       maliciousUrlProtection: true,
       xssProtection: true,
       trackerBlocking: true,
@@ -415,9 +535,22 @@ async function resetSettings() {
       notifications: true,
       autoUpdate: true,
       strictMode: false
+    }
+    
+    settings.value = defaultSettings
+    
+    // 通过 background 保存设置
+    await chrome.runtime.sendMessage({
+      type: 'UPDATE_SETTINGS',
+      data: defaultSettings
     })
+    
+    // 同步到 store
+    await securityStore.updateSettings(defaultSettings)
+    
     ElMessage.success('设置已重置为默认值')
   } catch (error) {
+    console.error('❌ 重置设置失败:', error)
     ElMessage.error('重置设置失败')
   }
 }
@@ -822,7 +955,7 @@ function parseCSV(content: string): string[] {
           return line.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0]
         }
       })
-      .filter(url => url) // 过滤无效项
+      .filter((url): url is string => !!url) // 过滤无效项并确保类型
     
     console.log(`解析出 ${urls.length} 个有效网址`)
     return urls
@@ -958,6 +1091,16 @@ function setupStorageListener() {
       if (areaName === 'local') {
         console.log('📢 Storage 变化检测:', changes)
         
+        if (changes.protection_settings) {
+          console.log('🔄 设置变化:', {
+            旧值: changes.protection_settings.oldValue,
+            新值: changes.protection_settings.newValue
+          })
+          if (changes.protection_settings.newValue && typeof changes.protection_settings.newValue === 'object') {
+            settings.value = { ...settings.value, ...changes.protection_settings.newValue }
+          }
+        }
+        
         if (changes.whitelist) {
           console.log('🔄 白名单变化:', {
             旧值: changes.whitelist.oldValue,
@@ -985,6 +1128,9 @@ function setupStorageListener() {
 
 onMounted(async () => {
   console.log('🎬 Options 页面初始化...')
+  
+  // 加载设置
+  await loadSettings()
   
   await securityStore.initialize()
   await loadLists()
@@ -1066,6 +1212,8 @@ onMounted(async () => {
 .setting-item:last-child {
   border-bottom: none;
 }
+
+/* 总开关样式已移除，与其他开关保持一致 */
 
 .setting-info h4 {
   margin: 0 0 4px 0;

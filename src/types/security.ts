@@ -53,6 +53,7 @@ export interface SecurityStats {
 
 // 防护设置
 export interface ProtectionSettings {
+  enabled: boolean  // 总开关
   maliciousUrlProtection: boolean
   xssProtection: boolean
   trackerBlocking: boolean
