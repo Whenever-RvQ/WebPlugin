@@ -220,7 +220,7 @@ declare const chrome: any
 const securityStore = useSecurityStore()
 
 // OpenRouter API配置（统一管理）
-const OPENROUTER_API_KEY = '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'
+const OPENROUTER_API_KEY = 'sk-or-v1-9019e42237208f14e9ffe1df1379ffbce36ad247c1289fb8ca2ceb6c52f13d5'
 
 // 响应式数据
 const isScanning = ref(false)
